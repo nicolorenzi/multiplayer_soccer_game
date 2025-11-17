@@ -60,13 +60,25 @@ listener_thread.start()
 # Pygame init
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Multiplayer Soccer - Player {player_id}".format(player_id=PLAYER_ID))
+pygame.display.set_caption(f"Multiplayer Soccer - Player {PLAYER_ID}")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 30)
 
 #draw field
+def draw_field(screen):
+    screen.fill(COLOUR_FIELD)
 
+    #midfeild line
+    pygame.draw.line(screen, COLOUR_LINES, (SCREEN_WIDTH//2, 0), (SCREEN_WIDTH//2, SCREEN_HEIGHT), 5)
 
+    #center circle
+    pygame.draw.circle(screen, COLOUR_LINES, (SCREEN_WIDTH//2, SCREEN_HEIGHT//2), 60, 3)
+
+    #goals
+    goal_height = 200
+    pygame.draw.rect(screen, COLOUR_LINES, (0, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
+    pygame.draw.rect(screen, COLOUR_LINES, (SCREEN_WIDTH - 10, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
+    
 # main loop
 running = True
 while running:
@@ -98,11 +110,16 @@ while running:
     draw_field(screen)
 
     #players
-
+    pygame.draw.circle(screen, COLOUR_PLAYER1, (int(p1[0]), int(p1[1])), PLAYER_RADIUS)
+    pygame.draw.circle(screen, COLOUR_PLAYER2, (int(p2[0]), int(p2[1])), PLAYER_RADIUS)
+    
     #ball
-
+    pygame.draw.circle(screen, COLOUR_BALL, (int(ball[0]), int(ball[1])), BALL_RADIUS)
+    
     #scoreboard
-
+    score_text = font.render(f"Player 1: {score[0]}  Player 2: {score[1]}", True, COLOUR_TEXT)
+    screen.blit(score_text, (SCREEN_WIDTH//2 - score_text.get_width()//2, 20))
+    
     #quit handling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
