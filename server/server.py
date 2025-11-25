@@ -111,11 +111,11 @@ def broadcast_state():
         "score": score
     }
 
-    msg = json.dumps(state).encode()
+    msg = (json.dumps(state) + "\n").encode()
 
     for pid in clients:
         try:
-            clients[pid].send(msg)
+            clients[pid].sendall(msg)
         except:
             pass
 

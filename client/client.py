@@ -39,23 +39,29 @@ game_state = {
 state_lock = threading.Lock()
 
 # background thread for revieving game stte
+buffer = ""
+
 def listen_to_server():
-    global game_state
+    global game_state, buffer
     while True:
         try:
-            data = client.recv(4096).decode()
-            if not data:
+            chunk = client.recv(4096).decode()
+            if not chunk:
                 break
-            new_state = json.loads(data)
-            with state_lock:
-                game_state = new_state
-        
+
+            buffer += chunk
+
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                if line.strip():
+                    new_state = json.loads(line)
+                    with state_lock:
+                        game_state = new_state
+
         except Exception as e:
             print(f"Server connection lost: {e}")
             break
 
-listener_thread = threading.Thread(target=listen_to_server, daemon=True)
-listener_thread.start()
 
 # Pygame init
 pygame.init()
