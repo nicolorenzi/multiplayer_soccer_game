@@ -1,157 +1,136 @@
-from socket import *
+import socket
 import threading
 import json
 import time
 
-# game state
-player_positions = {
-    1: [100, 300],
-    2: [800, 300]
-}
-ball_position = [450, 300]
-score = [0, 0]
-ball_velocity = [0, 0]
+PORT = 2525
 
-player_inputs = {
-    1: {"up": False, "down": False, "left": False, "right": False},
-    2: {"up": False, "down": False, "left": False, "right": False},
-}
+# Minimal game state
+p1 = {"x": 100, "y": 300, "input": {}}
+p2 = {"x": 800, "y": 300, "input": {}}
+ball = {"x": 450, "y": 300, "vx": 0, "vy": 0}
+score = [0, 0]
 
 clients = {}
-state_lock = threading.Lock()
+lock = threading.Lock()
 
+def reset_ball():
+    ball["x"], ball["y"] = 450, 300
+    ball["vx"], ball["vy"] = 0, 0
 
-def handle_client(connectionSocket, addr, player_id):
-    print(f'Connection from {addr} has been established. Assigned Player ID: {player_id}')
-    
+def handle_client(conn, addr):
+    global clients
+    with lock:
+        pid = 1 if 1 not in clients else 2
+        clients[pid] = conn
+
+    conn.send(json.dumps({"player_id": pid}).encode())
+
     try:
         while True:
-            request = connectionSocket.recv(1024).decode()
-            if not request:
+            msg = conn.recv(1024)
+            if not msg:
                 break
-            print(f'Player {player_id} says: {request}')
+
             try:
-                inputs = json.loads(request)
-                with state_lock:
-                    player_inputs[player_id] = inputs
+                data = json.loads(msg.decode())
             except:
-                print(f"Invalid JSON from Player {player_id}")
+                continue
 
-            #echo back (can remove if needed)
-            # response = f'Echo from server to Player {player_id}: {request}'
-            # connectionSocket.send(response.encode())
+            with lock:
+                if pid == 1:
+                    p1["input"] = data
+                else:
+                    p2["input"] = data
+    except:
+        pass
 
-    except Exception as e:
-        print(f'An error occurred with Player {player_id}: {e}')
-
-    finally:
-        connectionSocket.close()
-        print(f'Connection with Player {player_id} closed.')
-
-
-def update_game_state():
-    speed = 5
-
-    # move players
-    for pid in [1, 2]:
-        inp = player_inputs[pid]
-        x, y = player_positions[pid]
-
-        if inp["up"]:
-            y -= speed
-        if inp["down"]:
-            y += speed
-        if inp["left"]:
-            x -= speed
-        if inp["right"]:
-            x += speed
-
-        x = max(20, min(880, x))
-        y = max(20, min(580, y))
-
-        player_positions[pid] = [x, y]
-
-    # move ball
-    global ball_position, ball_velocity
-
-    # Ball momentum update
-    ball_position[0] += ball_velocity[0]
-    ball_position[1] += ball_velocity[1]
-
-    # Ball friction
-    ball_velocity[0] *= 0.95
-    ball_velocity[1] *= 0.95
-
-    # Bounce off walls
-    if ball_position[0] <= 20 or ball_position[0] >= 880:
-        ball_velocity[0] *= -1
-    if ball_position[1] <= 20 or ball_position[1] >= 580:
-        ball_velocity[1] *= -1
-
-    # check if players kick the ball
-    for pid in [1, 2]:
-        px, py = player_positions[pid]
-        bx, by = ball_position
-
-        dx = bx - px
-        dy = by - py
-        dist = (dx**2 + dy**2) ** 0.5
-
-        if dist < 40:  # player radius 20 + ball radius 12 ~ 32
-            # push ball away from player
-            ball_velocity[0] += dx * 0.1
-            ball_velocity[1] += dy * 0.1
+    with lock:
+        del clients[pid]
+        print(f"Player {pid} disconnected")
+    conn.close()
 
 
-def broadcast_state():
+def update():
+    # Player movement
+    for p in (p1, p2):
+        inp = p["input"]
+        if inp.get("up"):    p["y"] -= 5
+        if inp.get("down"):  p["y"] += 5
+        if inp.get("left"):  p["x"] -= 5
+        if inp.get("right"): p["x"] += 5
+
+        # clamp
+        p["x"] = max(20, min(880, p["x"]))
+        p["y"] = max(20, min(580, p["y"]))
+
+    # Move ball
+    ball["x"] += ball["vx"]
+    ball["y"] += ball["vy"]
+    ball["vx"] *= 0.97
+    ball["vy"] *= 0.97
+
+    # Simple bounce
+    if ball["y"] <= 10 or ball["y"] >= 590:
+        ball["vy"] *= -1
+
+    # Player → ball collision (simple push)
+    for p in (p1, p2):
+        dx = ball["x"] - p["x"]
+        dy = ball["y"] - p["y"]
+        dist = (dx*dx + dy*dy) ** 0.5
+        if dist < 40:
+            ball["vx"] += dx * 0.1
+            ball["vy"] += dy * 0.1
+
+    # Goals
+    goal_top = 200
+    goal_bottom = 400
+
+    if ball["x"] < 10 and goal_top < ball["y"] < goal_bottom:
+        score[1] += 1
+        reset_ball()
+
+    if ball["x"] > 890 and goal_top < ball["y"] < goal_bottom:
+        score[0] += 1
+        reset_ball()
+
+
+def send_state():
     state = {
-        "p1": player_positions[1],
-        "p2": player_positions[2],
-        "ball": ball_position,
+        "p1": [p1["x"], p1["y"]],
+        "p2": [p2["x"], p2["y"]],
+        "ball": [ball["x"], ball["y"]],
         "score": score
     }
-
-    msg = json.dumps(state).encode()
-
-    for pid in clients:
+    encoded = json.dumps(state).encode()
+    for conn in clients.values():
         try:
-            clients[pid].send(msg)
+            conn.sendall(encoded)
         except:
             pass
 
 
-# main server
-serverPort = 2525
-serverSocket = socket(AF_INET, SOCK_STREAM)
+def game_loop():
+    while True:
+        time.sleep(1/60)
+        with lock:
+            update()
+            send_state()
 
-serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 
-serverSocket.bind(('', serverPort))
-serverSocket.listen(2)
+def main():
+    threading.Thread(target=game_loop, daemon=True).start()
 
-print('The server is ready to receive')
+    s = socket.socket()
+    s.bind(("", PORT))
+    s.listen(2)
+    print("Server running on port", PORT)
 
-#accept players 1 and 2
-for player_id in [1, 2]:
-    conn, addr = serverSocket.accept()
-    clients[player_id] = conn
+    while True:
+        conn, addr = s.accept()
+        threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
 
-    #send player ID to client
-    conn.send(json.dumps({"player_id": player_id}).encode())
 
-    #start client thread
-    client_thread = threading.Thread(
-        target=handle_client,
-        args=(conn, addr, player_id),
-        daemon=True
-    )
-    client_thread.start()
-
-print("Both players connected. Starting game...")
-
-# 60 FPS game loop
-while True:
-    time.sleep(1/60)
-    with state_lock:
-        update_game_state()
-        broadcast_state()
+if __name__ == "__main__":
+    main()
