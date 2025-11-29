@@ -11,12 +11,12 @@ SCREEN_HEIGHT = 600
 PLAYER_RADIUS = 20
 BALL_RADIUS = 12
 
-COLOUR_FIELD = (34, 139, 34)
-COLOUR_LINES = (255, 255, 255)
-COLOUR_PLAYER1 = (0, 102, 255)
-COLOUR_PLAYER2 = (255, 51, 51)
-COLOUR_BALL = (255, 255, 255)
-COLOUR_TEXT = (255, 255, 255)
+COLOR_FIELD = (34, 139, 34)
+COLOR_LINES = (255, 255, 255)
+COLOR_PLAYER1 = (0, 102, 255)
+COLOR_PLAYER2 = (255, 51, 51)
+COLOR_BALL = (255, 255, 255)
+COLOR_TEXT = (255, 255, 255)
 
 # Socket init
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -35,13 +35,14 @@ game_state = {
     "score": [0, 0]
 }
 
+waiting = True
 state_lock = threading.Lock()
 
 # Background thread for revieving game state
 buffer = ""
 
 def listen_to_server():
-    global game_state, buffer
+    global game_state, buffer, waiting
     while True:
         try:
             chunk = client.recv(4096).decode()
@@ -56,6 +57,7 @@ def listen_to_server():
                     new_state = json.loads(line)
                     with state_lock:
                         game_state = new_state
+                        waiting = False
 
         except Exception as e:
             print(f"Server connection lost: {e}")
@@ -73,18 +75,18 @@ font = pygame.font.SysFont("Arial", 30)
 
 # Draw field
 def draw_field(screen):
-    screen.fill(COLOUR_FIELD)
+    screen.fill(COLOR_FIELD)
 
     # Midfield line
-    pygame.draw.line(screen, COLOUR_LINES, (SCREEN_WIDTH//2, 0), (SCREEN_WIDTH//2, SCREEN_HEIGHT), 5)
+    pygame.draw.line(screen, COLOR_LINES, (SCREEN_WIDTH//2, 0), (SCREEN_WIDTH//2, SCREEN_HEIGHT), 5)
 
     # Center circle
-    pygame.draw.circle(screen, COLOUR_LINES, (SCREEN_WIDTH//2, SCREEN_HEIGHT//2), 60, 3)
+    pygame.draw.circle(screen, COLOR_LINES, (SCREEN_WIDTH//2, SCREEN_HEIGHT//2), 60, 3)
 
     # Goals
     goal_height = 200
-    pygame.draw.rect(screen, COLOUR_LINES, (0, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
-    pygame.draw.rect(screen, COLOUR_LINES, (SCREEN_WIDTH - 10, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
+    pygame.draw.rect(screen, COLOR_LINES, (0, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
+    pygame.draw.rect(screen, COLOR_LINES, (SCREEN_WIDTH - 10, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
     
 # Main loop
 running = True
@@ -114,18 +116,26 @@ while running:
         ball = game_state["ball"]
         score = game_state["score"]
 
-    draw_field(screen)
+    # Waiting message
+    if waiting:
+        screen.fill(COLOR_FIELD)
+        wait_text = font.render("Waiting for player 2...", True, COLOR_TEXT)
+        screen.blit(wait_text, (SCREEN_WIDTH//2 - wait_text.get_width()//2, SCREEN_HEIGHT//2 - wait_text.get_height()//2))
+    
+    # Rest of game when done waiting 
+    else: 
+        draw_field(screen)
 
-    # Players
-    pygame.draw.circle(screen, COLOUR_PLAYER1, (int(p1[0]), int(p1[1])), PLAYER_RADIUS)
-    pygame.draw.circle(screen, COLOUR_PLAYER2, (int(p2[0]), int(p2[1])), PLAYER_RADIUS)
+        # Players
+        pygame.draw.circle(screen, COLOR_PLAYER1, (int(p1[0]), int(p1[1])), PLAYER_RADIUS)
+        pygame.draw.circle(screen, COLOR_PLAYER2, (int(p2[0]), int(p2[1])), PLAYER_RADIUS)
     
-    # Ball
-    pygame.draw.circle(screen, COLOUR_BALL, (int(ball[0]), int(ball[1])), BALL_RADIUS)
+        # Ball
+        pygame.draw.circle(screen, COLOR_BALL, (int(ball[0]), int(ball[1])), BALL_RADIUS)
     
-    # Scoreboard
-    score_text = font.render(f"Player 1: {score[0]}  Player 2: {score[1]}", True, COLOUR_TEXT)
-    screen.blit(score_text, (SCREEN_WIDTH//2 - score_text.get_width()//2, 20))
+        # Scoreboard
+        score_text = font.render(f"Player 1: {score[0]}  Player 2: {score[1]}", True, COLOR_TEXT)
+        screen.blit(score_text, (SCREEN_WIDTH//2 - score_text.get_width()//2, 20))
     
     # Quit handling
     for event in pygame.event.get():
