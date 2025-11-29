@@ -3,7 +3,7 @@ import json
 import pygame
 import threading
 
-SERVER_IP = "127.0.0.1"
+SERVER_IP = "192.168.12.135"
 SERVER_PORT = 2525
 
 SCREEN_WIDTH = 900
@@ -19,16 +19,15 @@ COLOUR_BALL = (255, 255, 255)
 COLOUR_TEXT = (255, 255, 255)
 
 # Socket init
-
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect((SERVER_IP, SERVER_PORT))
 
-# recieve player id
+# Recieve player id
 player_info = json.loads(client.recv(1024).decode())
 PLAYER_ID = player_info["player_id"]
 print(f"Connected as Player {PLAYER_ID}")
 
-# shared game state
+# Shared game state
 game_state = {
     "p1": [100, 300],
     "p2": [800, 300],
@@ -38,7 +37,7 @@ game_state = {
 
 state_lock = threading.Lock()
 
-# background thread for revieving game stte
+# Background thread for revieving game state
 buffer = ""
 
 def listen_to_server():
@@ -62,6 +61,8 @@ def listen_to_server():
             print(f"Server connection lost: {e}")
             break
 
+listener = threading.Thread(target=listen_to_server, daemon=True)
+listener.start()
 
 # Pygame init
 pygame.init()
@@ -70,27 +71,27 @@ pygame.display.set_caption(f"Multiplayer Soccer - Player {PLAYER_ID}")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 30)
 
-#draw field
+# Draw field
 def draw_field(screen):
     screen.fill(COLOUR_FIELD)
 
-    #midfeild line
+    # Midfield line
     pygame.draw.line(screen, COLOUR_LINES, (SCREEN_WIDTH//2, 0), (SCREEN_WIDTH//2, SCREEN_HEIGHT), 5)
 
-    #center circle
+    # Center circle
     pygame.draw.circle(screen, COLOUR_LINES, (SCREEN_WIDTH//2, SCREEN_HEIGHT//2), 60, 3)
 
-    #goals
+    # Goals
     goal_height = 200
     pygame.draw.rect(screen, COLOUR_LINES, (0, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
     pygame.draw.rect(screen, COLOUR_LINES, (SCREEN_WIDTH - 10, (SCREEN_HEIGHT - goal_height)//2, 10, goal_height))
     
-# main loop
+# Main loop
 running = True
 while running:
     clock.tick(60)
 
-    # handle input
+    # Handles input
     keys = pygame.key.get_pressed()
     inputs = {
         "up": keys[pygame.K_w] or keys[pygame.K_UP],
@@ -99,14 +100,14 @@ while running:
         "right": keys[pygame.K_d] or keys[pygame.K_RIGHT]
     }
 
-    #sed input to server
+    # Send input to server
     try:
         client.send(json.dumps(inputs).encode())
     except:
         print("Server closed connection.")
         running = False
 
-    # drawing
+    # Drawing
     with state_lock:
         p1 = game_state["p1"]
         p2 = game_state["p2"]
@@ -115,18 +116,18 @@ while running:
 
     draw_field(screen)
 
-    #players
+    # Players
     pygame.draw.circle(screen, COLOUR_PLAYER1, (int(p1[0]), int(p1[1])), PLAYER_RADIUS)
     pygame.draw.circle(screen, COLOUR_PLAYER2, (int(p2[0]), int(p2[1])), PLAYER_RADIUS)
     
-    #ball
+    # Ball
     pygame.draw.circle(screen, COLOUR_BALL, (int(ball[0]), int(ball[1])), BALL_RADIUS)
     
-    #scoreboard
+    # Scoreboard
     score_text = font.render(f"Player 1: {score[0]}  Player 2: {score[1]}", True, COLOUR_TEXT)
     screen.blit(score_text, (SCREEN_WIDTH//2 - score_text.get_width()//2, 20))
     
-    #quit handling
+    # Quit handling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False

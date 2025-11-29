@@ -3,7 +3,7 @@ import threading
 import json
 import time
 
-# game state
+# Game State
 player_positions = {
     1: [100, 300],
     2: [800, 300]
@@ -19,7 +19,6 @@ player_inputs = {
 
 clients = {}
 state_lock = threading.Lock()
-
 
 def handle_client(connectionSocket, addr, player_id):
     print(f'Connection from {addr} has been established. Assigned Player ID: {player_id}')
@@ -37,10 +36,6 @@ def handle_client(connectionSocket, addr, player_id):
             except:
                 print(f"Invalid JSON from Player {player_id}")
 
-            #echo back (can remove if needed)
-            # response = f'Echo from server to Player {player_id}: {request}'
-            # connectionSocket.send(response.encode())
-
     except Exception as e:
         print(f'An error occurred with Player {player_id}: {e}')
 
@@ -52,7 +47,7 @@ def handle_client(connectionSocket, addr, player_id):
 def update_game_state():
     speed = 5
 
-    # move players
+    # Moves players
     for pid in [1, 2]:
         inp = player_inputs[pid]
         x, y = player_positions[pid]
@@ -71,7 +66,7 @@ def update_game_state():
 
         player_positions[pid] = [x, y]
 
-    # move ball
+    # Moves ball
     global ball_position, ball_velocity
 
     # Ball momentum update
@@ -88,7 +83,7 @@ def update_game_state():
     if ball_position[1] <= 20 or ball_position[1] >= 580:
         ball_velocity[1] *= -1
 
-    # check if players kick the ball
+    # Checks if players kick the ball
     for pid in [1, 2]:
         px, py = player_positions[pid]
         bx, by = ball_position
@@ -98,7 +93,7 @@ def update_game_state():
         dist = (dx**2 + dy**2) ** 0.5
 
         if dist < 40:  # player radius 20 + ball radius 12 ~ 32
-            # push ball away from player
+            # Pushes ball away from player
             ball_velocity[0] += dx * 0.1
             ball_velocity[1] += dy * 0.1
 
@@ -120,7 +115,7 @@ def broadcast_state():
             pass
 
 
-# main server
+# Main Server
 serverPort = 2525
 serverSocket = socket(AF_INET, SOCK_STREAM)
 
@@ -131,15 +126,13 @@ serverSocket.listen(2)
 
 print('The server is ready to receive')
 
-#accept players 1 and 2
+# Accepts players 1 and 2
 for player_id in [1, 2]:
     conn, addr = serverSocket.accept()
     clients[player_id] = conn
 
-    #send player ID to client
     conn.send(json.dumps({"player_id": player_id}).encode())
 
-    #start client thread
     client_thread = threading.Thread(
         target=handle_client,
         args=(conn, addr, player_id),
