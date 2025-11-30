@@ -36,7 +36,7 @@ cd multiplayer_soccer_game
 
 2. Create and activate a virtual environment
 
-  **macOS**
+  **macOS/Linux**
   ```bash
   python3 -m venv env
   source env/bin/activate
@@ -56,23 +56,23 @@ pip install -r requirements.txt
 
 4. Update SERVER_IP constant in client.py to the server machine's IP address
 
-   Can be found by running: 
+   Can find IP address by running: 
 
-   **macOS/Linux**
-   ```bash
-   ipconfig getifaddr en0
-   ```
-   **Windows**
-   ```bash
-   ipconfig
-   ```
+**macOS/Linux**
+```bash
+ipconfig getifaddr en0
+```
+**Windows**
+```bash
+ipconfig
+```
 
    Then update this line in client.py:
    ```python
    SERVER_IP = "xxx.xxx.xxx.xxx"
    ```
 
-6. Open the 'server' directory and start the server in terminal
+5. Open the 'server' directory and start the server in terminal
 
 ```bash
 cd server
