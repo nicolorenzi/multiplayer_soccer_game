@@ -3,7 +3,7 @@ import json
 import pygame
 import threading
 
-SERVER_IP = "10.0.0.9"
+SERVER_IP = "10.5.89.38"
 SERVER_PORT = 2525
 
 SCREEN_WIDTH = 900
