@@ -106,5 +106,6 @@ Connected as Player 2
 
 ## Limitations
 - Supports only 2 players
-- Both clients must be on the same network/WiFi
+- Both clients must be on the same local network
 - No collisions between players yet
+- P1 loads in slightly quicker than P2
