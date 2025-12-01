@@ -13,14 +13,18 @@ score = [0, 0]
 ball_velocity = [0, 0]
 
 player_inputs = {
-    1: {"up": False, "down": False, "left": False, "right": False},
-    2: {"up": False, "down": False, "left": False, "right": False},
+    1: {"up": False, "down": False, "left": False, "right": False, "replay": False},
+    2: {"up": False, "down": False, "left": False, "right": False, "replay": False},
 }
 
 clients = {}
 state_lock = threading.Lock()
 
+replay_votes = {1: False, 2: False}
+quit_requested = False
+
 def handle_client(connectionSocket, addr, player_id):
+    global quit_requested
     print(f'Connection from {addr} has been established. Assigned Player ID: {player_id}')
     
     try:
@@ -33,6 +37,11 @@ def handle_client(connectionSocket, addr, player_id):
                 inputs = json.loads(request)
                 with state_lock:
                     player_inputs[player_id] = inputs
+                    if inputs.get("replay", False):
+                        replay_votes[player_id] = True
+                    if inputs.get("quit", False):
+                        quit_requested = True
+                        print(f"Player {player_id} requested to quit")
             except:
                 print(f"Invalid JSON from Player {player_id}")
 
@@ -77,11 +86,18 @@ def update_game_state():
     ball_velocity[0] *= 0.95
     ball_velocity[1] *= 0.95
 
-    # Bounce off walls
-    if ball_position[0] <= 20 or ball_position[0] >= 880:
-        ball_velocity[0] *= -1
+    # Bounce off top and bottom walls
     if ball_position[1] <= 20 or ball_position[1] >= 580:
         ball_velocity[1] *= -1
+
+    # Bounce off left and right walls (not in goal area)
+    goal_top = 200
+    goal_bottom = 400
+    
+    # Only bounce if not in goal zone
+    if ball_position[1] < goal_top or ball_position[1] > goal_bottom:
+        if ball_position[0] <= 20 or ball_position[0] >= 880:
+            ball_velocity[0] *= -1
 
     # Checks if players kick the ball
     for pid in [1, 2]:
@@ -92,18 +108,100 @@ def update_game_state():
         dy = by - py
         dist = (dx**2 + dy**2) ** 0.5
 
-        if dist < 40:  # player radius 20 + ball radius 12 ~ 32
+        if dist < 40: 
             # Pushes ball away from player
             ball_velocity[0] += dx * 0.1
             ball_velocity[1] += dy * 0.1
 
 
-def broadcast_state():
+def check_goal():
+    global ball_position, ball_velocity, score
+    
+    # Goal dimensions
+    goal_top = 200
+    goal_bottom = 400
+    left_goal_x = 20
+    right_goal_x = 880
+    
+    bx, by = ball_position
+    
+    # Check if ball is in goal zone
+    if goal_top <= by <= goal_bottom:
+        # Player 2 scores (ball crossed left goal line)
+        if bx <= left_goal_x:
+            score[1] += 1
+            print(f"GOAL! Player 2 scores! Score: {score[0]} - {score[1]}")
+            reset_after_goal()
+            return True
+        
+        # Player 1 scores (ball crossed right goal line)
+        elif bx >= right_goal_x:
+            score[0] += 1
+            print(f"GOAL! Player 1 scores! Score: {score[0]} - {score[1]}")
+            reset_after_goal()
+            return True
+    
+    return False
+
+
+def reset_after_goal():
+    global ball_position, ball_velocity, player_positions
+    
+    # Reset ball
+    ball_position = [450, 300]
+    ball_velocity = [0, 0]
+    
+    # Reset players 
+    player_positions[1] = [100, 300]
+    player_positions[2] = [800, 300]
+    
+    print("Positions reset after goal")
+
+
+def reset_game():
+    global ball_position, ball_velocity, player_positions, score, replay_votes
+    
+    # Reset score
+    score[0] = 0
+    score[1] = 0
+    
+    # Reset ball
+    ball_position = [450, 300]
+    ball_velocity = [0, 0]
+    
+    # Reset players
+    player_positions[1] = [100, 300]
+    player_positions[2] = [800, 300]
+    
+    # Reset replay votes
+    replay_votes[1] = False
+    replay_votes[2] = False
+    
+    print("Game reset for replay!")
+
+
+def check_game_over():
+    if score[0] >= 3:
+        return True, 1  # Player 1 wins
+    if score[1] >= 3:
+        return True, 2  # Player 2 wins
+    
+    return False, None
+
+
+def check_replay_votes():
+    return replay_votes[1] and replay_votes[2]
+
+
+def broadcast_state(game_over=False, winner=None):
     state = {
         "p1": player_positions[1],
         "p2": player_positions[2],
         "ball": ball_position,
-        "score": score
+        "score": score,
+        "game_over": game_over,
+        "winner": winner,
+        "replay_votes": replay_votes
     }
 
     msg = (json.dumps(state) + "\n").encode()
@@ -143,8 +241,39 @@ for player_id in [1, 2]:
 print("Both players connected. Starting game...")
 
 # 60 FPS game loop
-while True:
+game_running = True
+game_over = False
+winner = None
+
+while game_running:
     time.sleep(1/60)
+
     with state_lock:
-        update_game_state()
-        broadcast_state()
+        # If game is over, check for replay votes or quit request
+        if game_over:
+            if quit_requested:
+                print("Quit requested by a player. Shutting down server...")
+                game_running = False
+                break
+
+            if check_replay_votes():
+                print("Both players voted to replay!")
+                reset_game()
+                game_over = False
+                winner = None
+            broadcast_state(game_over=True, winner=winner)
+        else:
+            update_game_state()
+            
+            if check_goal():
+                # Check if game is over
+                is_over, game_winner = check_game_over()
+                if is_over:
+                    print(f"GAME OVER! Player {game_winner} wins with score {score[0]} - {score[1]}!")
+                    game_over = True
+                    winner = game_winner
+            
+            # Broadcast normal state
+            broadcast_state(game_over=game_over, winner=winner)
+
+serverSocket.close()
