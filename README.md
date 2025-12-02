@@ -79,16 +79,40 @@ cd server
 python3 server.py
 ```
 
-6. In a second terminal, open the 'client' directory and start client 1 
+6. In a second terminal, activate the virtual environment again.
+
+  **macOS/Linux**
+   ```bash
+   source env/bin/activate
+   ```
+
+  **Windows**
+   ```bash
+   env\Scripts\activate.bat
+   ```
+
+8. Open the 'client' directory and start client 1 
 
 ```bash
 cd client
 python3 client.py
 ```
 
-7. Repeat steps 1-3 on a second machine (OPTIONAL but recommended)
+8. Repeat steps 1-4 on a second machine (OPTIONAL but recommended)
 
-8. In another terminal, open the 'client' directory and start client 2
+6. In another terminal, activate the virtual environment again.
+
+  **macOS/Linux**
+   ```bash
+   source env/bin/activate
+   ```
+
+  **Windows**
+   ```bash
+   env\Scripts\activate.bat
+   ```
+
+8. Open the 'client' directory and start client 2
 
 ```bash
 cd client
